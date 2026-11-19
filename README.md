@@ -46,13 +46,35 @@ foodmonsterprint test-print --ip 192.168.1.50 [--port 9100] [--width 576]   # di
 foodmonsterprint test-print --fake        # writes a test pattern to fake-prints/
 ```
 
-Status page (on this PC only): **http://127.0.0.1:9123**. It shows the printers, the last jobs and errors, and has a pairing form.
+Status page (on this PC only): **http://127.0.0.1:9123**. It shows the printers with their health, the last jobs and errors, and has a pairing form.
+
+## Printers
+
+### Network printers (Epson / Xprinter LAN)
+- They use raw TCP port 9100: 5 s connect timeout, 15 s write timeout.
+- **Status check before each job** (`tcp.statusCheck`, on by default): the service asks the printer `DLE EOT 2` and `DLE EOT 4` on the same connection.
+  - Paper out or cover open: **nothing is sent**. The error is `PAPER_OUT` / `COVER_OPEN` and the service retries later.
+  - A printer that does not answer within 1.5 s is printed to normally.
+
+### USB printers (Windows only)
+- The Windows printer must be installed (any driver: Epson, Xprinter, or "Generic / Text Only").
+- **The printer name in admin Printer List must be exactly the Windows printer name.** If it is different, set it on this PC:
+  `"printerOverrides": { "5": { "windowsPrinter": "XP-80C" } }`
+- The service sends RAW ESC/POS bytes through the Windows spooler (no printer sharing needed) and then **watches the Windows job** (`usb.waitForJobMs`, 30 s):
+  - The job leaves the queue: printed.
+  - Windows reports offline, paper out or an error before printing started: the job is **deleted from the queue**, so it can never print hours later. The service then retries, or reports the reason.
+  - The job did not start within 30 s: it is deleted and the service retries.
+- If the printer name is wrong, the error lists the printers that are installed in Windows.
+- Bind a USB printer to its laptop in admin (Printer List → Device), so other laptops never get its jobs.
+
+### Heartbeat
+Every 30 s the service sends the health of each printer to the server (`OK`, `PAPER_OUT`, `COVER_OPEN`, `OFFLINE`, `UNREACHABLE`, `NO_STATUS`...). POS and admin show it as green/red dots. A printer that is busy printing is not probed.
 
 ## Development on a Mac
 
 ```bash
 npm install
-npm test                 # 31 tests: raster, TCP timeouts, journal/outbox, queues, end-to-end with a mock server
+npm test                 # raster, TCP timeouts, status checks, journal/outbox, queues, heartbeat, end-to-end with a mock server
 npm run build            # -> dist/
 ```
 
@@ -67,7 +89,8 @@ JSON
 # 2. fake printers (each in its own terminal)
 npm run fake-printer -- --port 9101                  # works, saves .bin + .png per receipt
 npm run fake-printer -- --port 9102 --mode hang      # never reads -> WRITE_TIMEOUT
-#   other modes: --mode offline (refused), --mode drop (cable pulled -> PARTIAL_WRITE)
+#   other modes: --mode offline (refused), --mode drop (cable pulled -> PARTIAL_WRITE),
+#                --mode paper-out, --mode cover-open (status check stops the job), --mode silent (no status answers)
 # 3. pair + run
 npm run dev -- pair <CODE>
 npm run dev -- run
@@ -83,5 +106,5 @@ To test a real network printer from the Mac: `npm run dev -- test-print --ip <pr
 - Paths in `C:\ProgramData\FoodMonsterPrint` and file locking by antivirus (the code retries renames).
 - Real Epson / Xprinter network printers: speed, cut, and long receipts (chunks of 255 rows).
 - Stopping with Ctrl+C or as a service (Phase 4).
-- **USB printers: Phase 3.** In this version a USB printer fails with the clear error `USB_NOT_SUPPORTED`.
+- **USB printers** (the Windows spooler calls cannot run on a Mac): printing, job watching, offline / paper-out detection, a wrong printer name.
 # pos-print-service

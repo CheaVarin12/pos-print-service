@@ -10,6 +10,8 @@ export interface PrinterOverride {
   /** Send this printer's jobs to another address (e.g. a fake printer on your Mac). */
   ip?: string;
   port?: number;
+  /** USB printer: the exact Windows printer name, if it differs from the name in Printer List. */
+  windowsPrinter?: string;
 }
 
 export interface AppConfig {
@@ -24,6 +26,18 @@ export interface AppConfig {
   tcp: {
     connectTimeoutMs: number;
     writeTimeoutMs: number;
+    /** Ask the printer for paper/cover status before each job (ESC/POS DLE EOT). */
+    statusCheck: boolean;
+    statusTimeoutMs: number;
+  };
+  usb: {
+    /** Watch each USB job in the Windows queue until it is printed (0 = do not watch). */
+    waitForJobMs: number;
+  };
+  heartbeat: {
+    intervalMs: number;
+    /** Open a short TCP connection to network printers to read their status. */
+    probeNetworkPrinters: boolean;
   };
   /** Wait times between tries when a printer cannot be reached. 5 tries in total by default. */
   retryDelaysSec: number[];
@@ -55,6 +69,15 @@ export function defaultConfig(paths: AppPaths): AppConfig {
     tcp: {
       connectTimeoutMs: 5000,
       writeTimeoutMs: 15000,
+      statusCheck: true,
+      statusTimeoutMs: 1500,
+    },
+    usb: {
+      waitForJobMs: 30000,
+    },
+    heartbeat: {
+      intervalMs: 30000,
+      probeNetworkPrinters: true,
     },
     retryDelaysSec: [5, 15, 30, 60],
     rasterChunkRows: 255,
@@ -83,6 +106,8 @@ export function loadConfig(paths: AppPaths): AppConfig {
     ...defaults,
     ...raw,
     tcp: { ...defaults.tcp, ...(raw.tcp ?? {}) },
+    usb: { ...defaults.usb, ...(raw.usb ?? {}) },
+    heartbeat: { ...defaults.heartbeat, ...(raw.heartbeat ?? {}) },
     printerOverrides: { ...(raw.printerOverrides ?? {}) },
   };
   validateConfig(merged);
@@ -122,6 +147,9 @@ export function validateConfig(config: AppConfig): void {
   intIn("statusPort", config.statusPort, 1024, 65535);
   intIn("tcp.connectTimeoutMs", config.tcp.connectTimeoutMs, 500, 60000);
   intIn("tcp.writeTimeoutMs", config.tcp.writeTimeoutMs, 1000, 120000);
+  intIn("tcp.statusTimeoutMs", config.tcp.statusTimeoutMs, 200, 10000);
+  intIn("usb.waitForJobMs", config.usb.waitForJobMs, 0, 300000);
+  intIn("heartbeat.intervalMs", config.heartbeat.intervalMs, 10000, 600000);
   intIn("rasterChunkRows", config.rasterChunkRows, 24, 2048);
   intIn("feedLines", config.feedLines, 0, 20);
   intIn("httpTimeoutMs", config.httpTimeoutMs, 1000, 120000);

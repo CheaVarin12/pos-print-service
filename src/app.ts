@@ -10,8 +10,9 @@ import { StatusServer } from "./status/server";
 import { AckOutbox } from "./store/ackOutbox";
 import { Journal } from "./store/journal";
 import { AckSender } from "./sync/ackSender";
+import { Heartbeat } from "./sync/heartbeat";
 import { Poller } from "./sync/poller";
-import { TransportRouter, resolveTarget } from "./transports/factory";
+import { PrinterHealthChecker, TransportRouter, resolveTarget } from "./transports/factory";
 import { PrinterTransport } from "./transports/types";
 import { APP_VERSION } from "./version";
 
@@ -19,6 +20,7 @@ export interface AppOptions {
   /** For tests: replace parts. */
   fetchImpl?: typeof fetch;
   transport?: PrinterTransport;
+  healthChecker?: Pick<PrinterHealthChecker, "check">;
   logger?: Logger;
   sleep?: SleepFn;
   /** Do not open the status port (tests). */
@@ -41,6 +43,7 @@ export class App {
   private dispatcher: Dispatcher | null = null;
   private poller: Poller | null = null;
   private ackSender: AckSender | null = null;
+  private heartbeat: Heartbeat | null = null;
   private pruneTimer: NodeJS.Timeout | null = null;
   private readonly startedAt = new Date().toISOString();
 
@@ -92,6 +95,7 @@ export class App {
     this.logger.info("FoodMonsterPrint stopping");
     if (this.pruneTimer) clearInterval(this.pruneTimer);
     await this.poller?.stop();
+    await this.heartbeat?.stop();
     await this.dispatcher?.stop();
     await this.ackSender?.stop();
     await this.statusServer?.close();
@@ -126,13 +130,15 @@ export class App {
         ip: target.host,
         port: target.port,
         paperWidth: target.paperWidth,
+        windowsName: target.windowsName,
         queue: queues.get(printer.id) ?? null,
+        health: this.heartbeat?.health(printer.id) ?? null,
       };
     });
     // Queues for printers not in the list any more (e.g. removed in admin) are still shown.
     for (const [printerId, queue] of queues) {
       if (!printers.some((p) => p.id === printerId)) {
-        printers.push({ id: printerId, name: queue.name, connection: "network", ip: null, port: 9100, paperWidth: 0, queue });
+        printers.push({ id: printerId, name: queue.name, connection: "network", ip: null, port: 9100, paperWidth: 0, windowsName: null, queue, health: null });
       }
     }
 
@@ -147,6 +153,7 @@ export class App {
       device: this.device ? { id: this.device.deviceId, name: this.device.name, branchId: this.device.branchId, pairedAt: this.device.pairedAt } : null,
       sync: this.poller?.status() ?? null,
       acks: this.ackSender?.status() ?? { pending: this.outbox.size(), lastError: null },
+      heartbeat: this.heartbeat?.status() ?? null,
       activeTasks: this.dispatcher?.activeCount() ?? 0,
       printers,
       recentJobs: this.journal.recent(50),
@@ -155,7 +162,7 @@ export class App {
 
   /** For tests. */
   internals() {
-    return { journal: this.journal, outbox: this.outbox, dispatcher: this.dispatcher, poller: this.poller, ackSender: this.ackSender };
+    return { journal: this.journal, outbox: this.outbox, dispatcher: this.dispatcher, poller: this.poller, ackSender: this.ackSender, heartbeat: this.heartbeat };
   }
 
   private startWorkers(device: DeviceIdentity): void {
@@ -178,6 +185,13 @@ export class App {
       sleep: this.options.sleep,
     });
     this.poller = new Poller(api, this.dispatcher, this.logger, this.config.pollIntervalMs);
+    this.heartbeat = new Heartbeat(
+      api,
+      this.dispatcher,
+      this.options.healthChecker ?? new PrinterHealthChecker(this.config),
+      this.config,
+      this.logger,
+    );
 
     const uncertain = this.dispatcher.resolveUncertainOnStartup();
     if (uncertain > 0) {
@@ -186,6 +200,7 @@ export class App {
 
     this.ackSender.start();
     this.poller.start();
+    this.heartbeat.start();
     this.logger.info("connected", { deviceId: device.deviceId, branchId: device.branchId });
   }
 }

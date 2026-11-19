@@ -65,7 +65,7 @@ export class ApiClient {
     return this.json<AckResponse>("POST", "/api/print/v2/ack", { acks });
   }
 
-  async heartbeat(body: { app_version: string; os_info?: string; printers: HeartbeatPrinter[] }): Promise<void> {
+  async heartbeat(body: { app_version: string; os_info?: string; printers: HeartbeatPrinter[]; [key: string]: unknown }): Promise<void> {
     await this.json("POST", "/api/print/v2/heartbeat", body);
   }
 

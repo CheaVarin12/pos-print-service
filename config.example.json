@@ -7,7 +7,16 @@
   "printerOverrides": {},
   "tcp": {
     "connectTimeoutMs": 5000,
-    "writeTimeoutMs": 15000
+    "writeTimeoutMs": 15000,
+    "statusCheck": true,
+    "statusTimeoutMs": 1500
+  },
+  "usb": {
+    "waitForJobMs": 30000
+  },
+  "heartbeat": {
+    "intervalMs": 30000,
+    "probeNetworkPrinters": true
   },
   "retryDelaysSec": [5, 15, 30, 60],
   "rasterChunkRows": 255,

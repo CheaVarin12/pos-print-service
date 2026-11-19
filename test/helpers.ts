@@ -84,6 +84,7 @@ export class MockServer {
   ackRequests = 0;
   /** Make the next N ack requests fail with HTTP 500. */
   failNextAcks = 0;
+  readonly heartbeats: any[] = [];
   /** Make sync fail (server down). */
   syncDown = false;
   leaseMs = 120000;
@@ -183,6 +184,12 @@ export class MockServer {
           },
         })),
       });
+      return;
+    }
+
+    if (url === "/api/print/v2/heartbeat") {
+      this.heartbeats.push(body);
+      send(200, { status: "success", server_time: new Date().toISOString() });
       return;
     }
 

@@ -5,6 +5,8 @@ export interface PrinterTarget {
   host: string | null;
   port: number;
   paperWidth: number;
+  /** USB only: the printer name in Windows (default: the name from Printer List). */
+  windowsName: string | null;
 }
 
 export interface SendContext {

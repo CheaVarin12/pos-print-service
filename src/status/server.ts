@@ -137,9 +137,9 @@ function renderPage(s: any, msg: string | null): string {
     .map(
       (p) => `<tr>
         <td>${esc(p.name)} <small>#${esc(p.id)}</small></td>
-        <td>${esc(p.connection)}${p.ip ? " " + esc(p.ip) + ":" + esc(p.port) : ""}</td>
+        <td>${esc(p.connection)}${p.connection === "network" && p.ip ? " " + esc(p.ip) + ":" + esc(p.port) : ""}${p.connection === "usb" ? " (Windows: " + esc(p.windowsName ?? p.name) + ")" : ""}</td>
         <td>${esc(p.paperWidth)} dots</td>
-        <td><span class="dot ${p.queue?.lastError ? "red" : "green"}"></span>${esc(p.queue?.state ?? "idle")} (${esc(p.queue?.queued ?? 0)} waiting)</td>
+        <td><span class="dot ${p.health && !p.health.online ? "red" : p.queue?.lastError ? "red" : "green"}"></span>${esc(p.health ? p.health.code + " - " + p.health.message : "not checked yet")}<br><small>queue: ${esc(p.queue?.state ?? "idle")} (${esc(p.queue?.queued ?? 0)} waiting)</small></td>
         <td>${p.queue?.lastError ? esc(p.queue.lastError.code + ": " + p.queue.lastError.message) : ""}</td>
         <td>${esc(p.queue?.lastPrintedAt ?? "")}</td>
       </tr>`,
