@@ -1,0 +1,17 @@
+{
+  "serverUrl": "https://staging.foodmonster.asia",
+  "deviceName": "Cashier PC",
+  "pollIntervalMs": 2500,
+  "statusPort": 9123,
+  "printerMode": "real",
+  "printerOverrides": {},
+  "tcp": {
+    "connectTimeoutMs": 5000,
+    "writeTimeoutMs": 15000
+  },
+  "retryDelaysSec": [5, 15, 30, 60],
+  "rasterChunkRows": 255,
+  "feedLines": 4,
+  "httpTimeoutMs": 15000,
+  "logLevel": "info"
+}
