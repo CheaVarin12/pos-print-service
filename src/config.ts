@@ -34,6 +34,11 @@ export interface AppConfig {
     /** Watch each USB job in the Windows queue until it is printed (0 = do not watch). */
     waitForJobMs: number;
   };
+  update: {
+    /** Install new versions offered by the server automatically (Windows only). */
+    enabled: boolean;
+    checkIntervalHours: number;
+  };
   heartbeat: {
     intervalMs: number;
     /** Open a short TCP connection to network printers to read their status. */
@@ -79,6 +84,10 @@ export function defaultConfig(paths: AppPaths): AppConfig {
       intervalMs: 30000,
       probeNetworkPrinters: true,
     },
+    update: {
+      enabled: true,
+      checkIntervalHours: 6,
+    },
     retryDelaysSec: [5, 15, 30, 60],
     rasterChunkRows: 255,
     feedLines: 4,
@@ -108,6 +117,7 @@ export function loadConfig(paths: AppPaths): AppConfig {
     tcp: { ...defaults.tcp, ...(raw.tcp ?? {}) },
     usb: { ...defaults.usb, ...(raw.usb ?? {}) },
     heartbeat: { ...defaults.heartbeat, ...(raw.heartbeat ?? {}) },
+    update: { ...defaults.update, ...(raw.update ?? {}) },
     printerOverrides: { ...(raw.printerOverrides ?? {}) },
   };
   validateConfig(merged);
@@ -150,6 +160,7 @@ export function validateConfig(config: AppConfig): void {
   intIn("tcp.statusTimeoutMs", config.tcp.statusTimeoutMs, 200, 10000);
   intIn("usb.waitForJobMs", config.usb.waitForJobMs, 0, 300000);
   intIn("heartbeat.intervalMs", config.heartbeat.intervalMs, 10000, 600000);
+  intIn("update.checkIntervalHours", config.update.checkIntervalHours, 1, 168);
   intIn("rasterChunkRows", config.rasterChunkRows, 24, 2048);
   intIn("feedLines", config.feedLines, 0, 20);
   intIn("httpTimeoutMs", config.httpTimeoutMs, 1000, 120000);

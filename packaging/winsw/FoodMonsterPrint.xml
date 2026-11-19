@@ -1,0 +1,34 @@
+<!--
+  WinSW 2.12 service definition for FoodMonsterPrint.
+  FoodMonsterPrint.exe (= WinSW-x64.exe renamed) reads this file. Commands (run as Administrator):
+    FoodMonsterPrint.exe install | uninstall | start | stop | stopwait | restart | status
+-->
+<service>
+  <id>FoodMonsterPrint</id>
+  <name>FoodMonsterPrint</name>
+  <description>FoodMonster POS print service: prints receipts and kitchen tickets to network and USB printers.</description>
+
+  <executable>%BASE%\node\node.exe</executable>
+  <arguments>"%BASE%\app\dist\src\index.js" run</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <env name="FMP_SERVICE" value="1" />
+
+  <!-- Start when Windows starts, for all users (runs as LocalSystem). -->
+  <startmode>Automatic</startmode>
+
+  <!-- Restart after a crash: 5 s, then 10 s, then every 30 s. The counter resets after 1 hour. -->
+  <onfailure action="restart" delay="5 sec" />
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <resetfailure>1 hour</resetfailure>
+
+  <!-- On stop, Ctrl+C is sent; the service finishes the current send and saves its state. -->
+  <stoptimeout>20 sec</stoptimeout>
+
+  <!-- The service writes its own daily logs here. WinSW only keeps start-up output (small files). -->
+  <logpath>%ProgramData%\FoodMonsterPrint\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>1024</sizeThreshold>
+    <keepFiles>3</keepFiles>
+  </log>
+</service>

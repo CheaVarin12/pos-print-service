@@ -42,7 +42,7 @@ describe("end to end", () => {
       serverUrl: server.url,
       pairedAt: new Date().toISOString(),
     });
-    app = new App(paths, { transport, logger: new MemoryLogger(), noStatusServer: true, sleep: async () => undefined });
+    app = new App(paths, { transport, logger: new MemoryLogger(), noStatusServer: true, noUpdater: true, sleep: async () => undefined });
     return app;
   }
 

@@ -101,6 +101,38 @@ Instead of overrides, you can set `"printerMode": "fake"` to save every job in `
 
 To test a real network printer from the Mac: `npm run dev -- test-print --ip <printer IP>`.
 
+## Windows package (Setup.exe)
+
+```bash
+node scripts/build-windows.mjs      # build/win/ (+ build/installer/FoodMonsterPrint-Setup-<version>.exe on Windows with Inno Setup 6.3+)
+```
+On a Mac only `build/win/` is made. The `.exe` is built on Windows, or with the GitHub Actions workflow `.github/workflows/windows-build.yml` ("Run workflow", or push a tag `v0.4.0`), which uploads the installer as an artifact.
+
+**What gets installed** (in `C:\Program Files\FoodMonsterPrint\`):
+
+| File | What |
+|---|---|
+| `FoodMonsterPrint.exe` + `.xml` | WinSW 2.12 service wrapper: automatic start; restart after a crash (5 s / 10 s / 30 s) |
+| `node\node.exe` | official Node.js 24 LTS (sha256 checked at build time) |
+| `app\` | FoodMonsterPrint code + pngjs + koffi (Windows x64) |
+| `fmp.cmd` | command line, run as Administrator: `fmp status`, `fmp pair CODE`, `fmp test-print --ip 192.168.1.50` |
+
+- The service runs as **LocalSystem** for all users and starts when Windows starts.
+- The data folder `C:\ProgramData\FoodMonsterPrint` is readable only by SYSTEM and Administrators, because it holds the device token.
+
+**Installer:**
+- **First install** asks for the server (Production / Staging / other) and writes `config.json`. Then it opens the status page so you can pair the PC.
+- **Silent install:** `Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /SERVER=https://admin.foodmonster.asia`
+- **Upgrade:** stops and removes the old service, replaces the files, installs and starts the new service. `config.json`, the token, the journal and the outbox are kept. Installing an older Setup.exe works the same way (this is the rollback).
+- **Uninstall:** stops and removes the service. It asks before deleting the settings and logs (default: keep them).
+
+**Auto-update:**
+- Every 6 hours the service asks Laravel `GET /api/print/v2/update`.
+- A **higher** version is downloaded (https), its sha256 is checked, and it is installed silently through Windows Task Scheduler. This happens only when nothing is printing.
+- Turn it off per PC with `"update": { "enabled": false }` in `config.json`.
+
+**Not signed:** the installer has no code-signing certificate, so Windows SmartScreen shows "Windows protected your PC". Click "More info" → "Run anyway". A certificate (about 200-400 USD per year) removes this.
+
 ## What must be tested on a Windows laptop
 
 - Paths in `C:\ProgramData\FoodMonsterPrint` and file locking by antivirus (the code retries renames).

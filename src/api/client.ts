@@ -69,6 +69,10 @@ export class ApiClient {
     await this.json("POST", "/api/print/v2/heartbeat", body);
   }
 
+  async checkUpdate(currentVersion: string): Promise<import("../update").UpdateInfo> {
+    return this.json("GET", `/api/print/v2/update?version=${encodeURIComponent(currentVersion)}`);
+  }
+
   /**
    * Download a print image. The URL comes from the server; it must be on the same server
    * (the token must never be sent to another host).

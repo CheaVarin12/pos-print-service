@@ -18,6 +18,10 @@
     "intervalMs": 30000,
     "probeNetworkPrinters": true
   },
+  "update": {
+    "enabled": true,
+    "checkIntervalHours": 6
+  },
   "retryDelaysSec": [5, 15, 30, 60],
   "rasterChunkRows": 255,
   "feedLines": 4,

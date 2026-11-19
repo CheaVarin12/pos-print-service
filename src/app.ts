@@ -14,6 +14,7 @@ import { Heartbeat } from "./sync/heartbeat";
 import { Poller } from "./sync/poller";
 import { PrinterHealthChecker, TransportRouter, resolveTarget } from "./transports/factory";
 import { PrinterTransport } from "./transports/types";
+import { Updater } from "./update";
 import { APP_VERSION } from "./version";
 
 export interface AppOptions {
@@ -25,6 +26,8 @@ export interface AppOptions {
   sleep?: SleepFn;
   /** Do not open the status port (tests). */
   noStatusServer?: boolean;
+  /** Do not start the auto-updater (tests). */
+  noUpdater?: boolean;
 }
 
 /**
@@ -44,12 +47,14 @@ export class App {
   private poller: Poller | null = null;
   private ackSender: AckSender | null = null;
   private heartbeat: Heartbeat | null = null;
+  private updater: Updater | null = null;
   private pruneTimer: NodeJS.Timeout | null = null;
   private readonly startedAt = new Date().toISOString();
 
   constructor(private readonly paths: AppPaths, private readonly options: AppOptions = {}) {
     this.config = loadConfig(paths);
-    this.logger = options.logger ?? new FileLogger({ dir: paths.logs, keepDays: 14, level: this.config.logLevel });
+    // As a Windows service, logs go to files only (WinSW keeps stdout only for crashes at start-up).
+    this.logger = options.logger ?? new FileLogger({ dir: paths.logs, keepDays: 14, level: this.config.logLevel, console: process.env.FMP_SERVICE !== "1" });
     this.journal = new Journal(paths.journal);
     this.outbox = new AckOutbox(paths.outbox);
     this.device = loadDevice(paths);
@@ -96,6 +101,7 @@ export class App {
     if (this.pruneTimer) clearInterval(this.pruneTimer);
     await this.poller?.stop();
     await this.heartbeat?.stop();
+    await this.updater?.stop();
     await this.dispatcher?.stop();
     await this.ackSender?.stop();
     await this.statusServer?.close();
@@ -154,6 +160,7 @@ export class App {
       sync: this.poller?.status() ?? null,
       acks: this.ackSender?.status() ?? { pending: this.outbox.size(), lastError: null },
       heartbeat: this.heartbeat?.status() ?? null,
+      update: this.updater?.status() ?? null,
       activeTasks: this.dispatcher?.activeCount() ?? 0,
       printers,
       recentJobs: this.journal.recent(50),
@@ -201,6 +208,17 @@ export class App {
     this.ackSender.start();
     this.poller.start();
     this.heartbeat.start();
+
+    if (!this.options.noUpdater) {
+      this.updater = new Updater(api, this.logger, {
+        enabled: this.config.update.enabled,
+        checkIntervalHours: this.config.update.checkIntervalHours,
+        dataDir: this.paths.root,
+        isIdle: () => (this.dispatcher?.activeCount() ?? 0) === 0 && this.outbox.size() === 0,
+        fetchImpl: this.options.fetchImpl,
+      });
+      this.updater.start();
+    }
     this.logger.info("connected", { deviceId: device.deviceId, branchId: device.branchId });
   }
 }

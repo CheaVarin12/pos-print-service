@@ -1,0 +1,35 @@
+# Builds FoodMonsterPrint-Setup-<version>.exe on a Windows machine (GitHub Actions).
+# Run it by hand ("Run workflow") or by pushing a tag like v0.4.0. Download the installer from
+# the run's "Artifacts". The log prints the SHA256 to put in the Laravel .env for auto-update.
+name: Windows build
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.22.2"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Tests
+        run: npm test
+
+      - name: Build package and installer
+        run: node scripts/build-windows.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FoodMonsterPrint-Setup
+          path: build/installer/*.exe
+          if-no-files-found: error
