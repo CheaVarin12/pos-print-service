@@ -64,7 +64,9 @@ describe("tcp transport", () => {
     expect(Date.now() - started).toBeLessThan(3000);
   });
 
-  it("printer stops reading -> WRITE_TIMEOUT, NOT retryable (part may have printed)", async () => {
+  // Skipped on Windows: Windows loopback (127.0.0.1) accepts the whole 64 MB into memory at once,
+  // so a "stuck printer" cannot be imitated on the same machine. Real network printers are not affected.
+  it.skipIf(process.platform === "win32")("printer stops reading -> WRITE_TIMEOUT, NOT retryable (part may have printed)", async () => {
     const port = await listen((socket) => socket.pause());
     const error = await sendTcp("127.0.0.1", port, Buffer.alloc(64 * 1024 * 1024, 1), options).catch((e) => e);
     expect(error).toBeInstanceOf(PrintError);
