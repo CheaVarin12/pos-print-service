@@ -55,7 +55,8 @@ export interface AppConfig {
 export interface DeviceIdentity {
   token: string;
   deviceId: string;
-  branchId: number;
+  /** null = this PC prints for all branches. */
+  branchId: number | null;
   shopId: number | null;
   name: string;
   serverUrl: string;

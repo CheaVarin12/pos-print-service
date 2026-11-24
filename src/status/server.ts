@@ -6,12 +6,14 @@ import { Logger } from "../logger";
  *   GET  /            -> HTML page (service, server connection, printers, last jobs, pairing form)
  *   GET  /api/status  -> the same data as JSON
  *   POST /pair        -> pair this device with a code (form field "code")
+ *   POST /unpair      -> remove the pairing (button "Remove pairing"), then a new code can be typed
  *
  * Binding the port also makes sure only ONE copy of the service runs.
  */
 export interface StatusProvider {
   status(): Record<string, unknown>;
   pair(code: string): Promise<void>;
+  unpair(): Promise<void>;
 }
 
 export class StatusServer {
@@ -77,12 +79,30 @@ export class StatusServer {
       return;
     }
 
-    if (req.method === "POST" && url.pathname === "/pair") {
+    if (req.method === "POST" && (url.pathname === "/pair" || url.pathname === "/unpair")) {
+      // Only forms of this page may post (another website cannot unpair or pair this PC).
       const origin = req.headers.origin;
       if (origin && !allowedHosts.map((h) => `http://${h}`).includes(origin)) {
         res.writeHead(403).end("Forbidden");
         return;
       }
+    }
+
+    if (req.method === "POST" && url.pathname === "/unpair") {
+      await readBody(req, 1024);
+      let message: string;
+      try {
+        await this.provider.unpair();
+        message = "Pairing removed. Create a new pairing code in admin and type it below.";
+      } catch (error) {
+        message = `Could not remove the pairing: ${error instanceof Error ? error.message : String(error)}`;
+      }
+      res.writeHead(303, { Location: `/?msg=${encodeURIComponent(message)}` });
+      res.end();
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/pair") {
       const body = await readBody(req, 4096);
       const code = new URLSearchParams(body).get("code") ?? "";
       let message: string;
@@ -176,18 +196,33 @@ ${paired ? '<meta http-equiv="refresh" content="5">' : ""}
   .good { color: #1a7a3e; font-weight: 600; } .bad { color: #c02d2d; font-weight: 600; }
   .msg { padding: 10px 12px; border-radius: 6px; background: #fff7d6; border: 1px solid #ecd78a; margin-bottom: 12px; }
   input[type=text] { font-size: 18px; padding: 6px 10px; letter-spacing: 2px; text-transform: uppercase; width: 12em; }
-  button { font-size: 16px; padding: 7px 14px; }
+  button { font-size: 16px; padding: 7px 14px; cursor: pointer; }
+  button.primary { background: #2563eb; border: 1px solid #2563eb; color: #fff; border-radius: 6px; }
   small { color: #6b7280; }
 </style></head><body>
 <h1>FoodMonsterPrint <small>v${esc(s.version)}</small></h1>
 ${msg ? `<div class="msg">${esc(msg)}</div>` : ""}
 <div class="card">
   <div><span class="dot ${paired && syncOk ? "green" : "red"}"></span>
-  ${paired ? `Paired as <b>${esc(s.device.name)}</b> (branch #${esc(s.device.branchId)})` : "<b>Not paired yet</b>"} — server ${esc(s.serverUrl)}</div>
+  ${paired ? `Paired as <b>${esc(s.device.name)}</b> (${s.device.branchId ? "branch #" + esc(s.device.branchId) : "all branches"})` : "<b>Not paired yet</b>"} — server ${esc(s.serverUrl)}</div>
   <div><small>Mode: ${esc(s.printerMode)} · last sync OK: ${esc(s.sync?.lastSyncOkAt ?? "never")} ·
   acks waiting: ${esc(s.acks?.pending ?? 0)} · data folder: ${esc(s.dataDir)}</small></div>
   ${s.sync?.lastError ? `<div class="bad">Server problem: ${esc(s.sync.lastError)}</div>` : ""}
   ${s.problem ? `<div class="bad">${esc(s.problem)}</div>` : ""}
+  ${
+    paired && s.sync?.unauthorized
+      ? `<div class="msg" style="margin-top:10px">This PC was removed (revoked) in admin, so it cannot print.
+         Click <b>Remove pairing</b>, then type a new pairing code.</div>`
+      : ""
+  }
+  ${
+    paired
+      ? `<form method="post" action="/unpair" style="margin-top:10px"
+           onsubmit="return confirm('Remove the pairing of this PC? It stops printing until you type a new pairing code.');">
+           <button type="submit" class="${s.sync?.unauthorized ? "primary" : ""}">Remove pairing (pair again)</button>
+         </form>`
+      : ""
+  }
 </div>
 ${
   paired

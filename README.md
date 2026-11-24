@@ -47,6 +47,7 @@ foodmonsterprint test-print --fake        # writes a test pattern to fake-prints
 ```
 
 Status page (on this PC only): **http://127.0.0.1:9123**. It shows the printers with their health, the last jobs and errors, and has a pairing form.
+To pair again (for example after the PC was revoked in admin), click **"Remove pairing (pair again)"** on that page, then type a new code. No restart and no command are needed. The printed-jobs history is kept, so nothing prints twice.
 
 ## Printers
 

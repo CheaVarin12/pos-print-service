@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { ApiClient } from "./api/client";
 import { AppConfig, DeviceIdentity, loadConfig, loadDevice } from "./config";
 import { ContentCache } from "./content/cache";
@@ -99,21 +100,35 @@ export class App {
   async stop(): Promise<void> {
     this.logger.info("FoodMonsterPrint stopping");
     if (this.pruneTimer) clearInterval(this.pruneTimer);
-    await this.poller?.stop();
-    await this.heartbeat?.stop();
-    await this.updater?.stop();
-    await this.dispatcher?.stop();
-    await this.ackSender?.stop();
+    await this.stopWorkers();
     await this.statusServer?.close();
     if (this.logger instanceof FileLogger) {
       await this.logger.close();
     }
   }
 
+  /**
+   * "Remove pairing" button on the status page: forget the device token so a new code can be typed.
+   * No service restart needed. The journal (printed jobs) and unsent acks are KEPT, so nothing prints twice.
+   */
+  async unpair(): Promise<void> {
+    await this.stopWorkers();
+    try {
+      fs.unlinkSync(this.paths.device);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw error;
+      }
+    }
+    this.device = null;
+    this.problem = null;
+    this.logger.warn("pairing removed from the status page; waiting for a new pairing code");
+  }
+
   /** Called from the status page form or the CLI. */
   async pair(code: string): Promise<void> {
     if (this.device) {
-      throw new Error("This device is already paired. Run 'foodmonsterprint unpair' first.");
+      throw new Error('This PC is already paired. Click "Remove pairing" first.');
     }
     if (!/^[A-Za-z0-9-\s]{4,20}$/.test(code.trim())) {
       throw new Error("Please type the code shown in admin.");
@@ -170,6 +185,19 @@ export class App {
   /** For tests. */
   internals() {
     return { journal: this.journal, outbox: this.outbox, dispatcher: this.dispatcher, poller: this.poller, ackSender: this.ackSender, heartbeat: this.heartbeat };
+  }
+
+  private async stopWorkers(): Promise<void> {
+    await this.poller?.stop();
+    await this.heartbeat?.stop();
+    await this.updater?.stop();
+    await this.dispatcher?.stop();
+    await this.ackSender?.stop();
+    this.poller = null;
+    this.heartbeat = null;
+    this.updater = null;
+    this.dispatcher = null;
+    this.ackSender = null;
   }
 
   private startWorkers(device: DeviceIdentity): void {

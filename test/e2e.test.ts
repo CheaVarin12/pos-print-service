@@ -101,6 +101,28 @@ describe("end to end", () => {
     expect(server.tasks.get(id)!.error).toContain("broke while printing");
   });
 
+  it("Remove pairing then pair again with a new code: prints again, no restart", async () => {
+    const doc = server.addDocument();
+    const first = server.addTask(1, doc);
+    const app = startApp();
+    await app.start();
+    await waitFor(() => server.tasks.get(first)!.status === "printed", 8000, "first print");
+
+    await app.unpair();
+    expect(app.status().device).toBeNull();
+    expect(fs.existsSync(appPaths(dir).device)).toBe(false);
+    expect(fs.existsSync(appPaths(dir).journal)).toBe(true); // printed history kept
+
+    const second = server.addTask(2, doc);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(server.tasks.get(second)!.status).toBe("pending"); // not paired: nothing printed
+
+    await app.pair("ABCD2345");
+    expect((app.status().device as { name: string }).name).toBe("Test PC");
+    await waitFor(() => server.tasks.get(second)!.status === "printed", 8000, "print after pairing again");
+    expect(transport.sent).toHaveLength(2);
+  });
+
   it("keeps polling while the server is down and prints when it is back", async () => {
     server.syncDown = true;
     const doc = server.addDocument();

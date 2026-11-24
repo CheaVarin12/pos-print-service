@@ -68,7 +68,7 @@ export interface AckResponse {
 export interface PairResponse {
   status: string;
   token: string;
-  device: { id: string; name: string; branch_id: number; shop_id: number | null };
+  device: { id: string; name: string; branch_id: number | null; shop_id: number | null };
   server_time: string;
 }
 

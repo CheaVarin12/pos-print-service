@@ -119,6 +119,11 @@ export class MockServer {
       res.writeHead(status, { "Content-Type": "application/json" });
       res.end(JSON.stringify(body));
     };
+    if (req.url === "/api/print/v2/pair") {
+      // Any code works in the mock; returns the mock token.
+      send(201, { status: "success", token: this.token, device: { id: "dev-2", name: "Test PC", branch_id: null, shop_id: 1 }, server_time: new Date().toISOString() });
+      return;
+    }
     if (req.headers.authorization !== `Bearer ${this.token}`) {
       send(401, { message: "Unauthorized", error_code: "UNAUTHORIZED" });
       return;
